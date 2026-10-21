@@ -1,6 +1,12 @@
 name: Southern Style production health
+run-name: "${{ inputs.simulate_failure == true && 'TEST ONLY - monitoring alert drill' || 'Southern Style health check' }}"
 on:
   workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: 'TEST ONLY: deliberately fail the run after real read-only checks'
+        type: boolean
+        default: false
   schedule:
     - cron: '17 * * * *'
 permissions:
@@ -24,6 +30,11 @@ jobs:
         env:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: node scripts/monitor-production.mjs --output "$RUNNER_TEMP/production-health.json"
+      - name: Synthetic alert drill - no production change
+        if: inputs.simulate_failure == true
+        run: |
+          echo 'TEST ONLY: intentional monitoring alert drill. Production health is reported separately below.'
+          exit 1
       - name: Record sanitized check summary
         if: always()
         run: |
