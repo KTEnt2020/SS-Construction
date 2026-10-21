@@ -1,0 +1,30 @@
+name: Southern Style production health
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: southern-style-production-monitor
+  cancel-in-progress: false
+jobs:
+  health:
+    if: github.repository == 'KTEnt2020/SS-Construction' && vars.MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Check website, authentication and private-access boundaries
+        env:
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/monitor-production.mjs --output "$RUNNER_TEMP/production-health.json"
+      - name: Record sanitized check summary
+        if: always()
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; const p=process.env.RUNNER_TEMP+"/production-health.json"; if(!fs.existsSync(p)){fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"Health check did not produce a report. Inspect the failed step.\n");process.exit(0);} const r=JSON.parse(fs.readFileSync(p));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"Southern Style: "+(r.ok?"HEALTHY":"ACTION REQUIRED")+"\n\n"+r.checks.map(c=>c.name+": "+(c.ok?"PASS":"FAIL")+" (HTTP "+c.status+")").join("\n"));'
